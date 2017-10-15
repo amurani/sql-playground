@@ -1,46 +1,11 @@
-const mysql = require('mysql');
-
-let loginHandler = (e) => {
-    e.preventDefault();
-    
-    let formData = new FormData(loginForm);
-    let databaseName = formData.get('database') || '';
-    var connection = mysql.createConnection({
-        host     : 'localhost',
-        user     : formData.get('userName') || 'root',
-        password : formData.get('password') || '',
-        database : databaseName
-    });
-    
-    connection.connect();
-    
-    connection.query('SHOW TABLES', (err, res) => {
-        if (err) throw err;
-        var database = {
-            name: databaseName,
-            tables : {}
-        };
-        var tables = res.map(r => r.Tables_in_world);
-        var sqlQueries = tables.map(table => `DESCRIBE ${table};`);
-        sqlQueries.forEach((sqlQuery, index) => {
-            connection.query(sqlQuery, (err, res) => {
-                if (err) throw err;
-                
-                let tableName = tables[index],
-                    tableFields = [];
-                res.forEach((r, index) => { tableFields.push(r); });
-                database.tables[tableName] = tableFields;
-
-                if (index === (tables.length - 1)) {
-                    renderDatabase(database);
-                    connection.end();
-                }
-            });
-        });
-    });
-}
+const db = require('./modules/db');
 
 let renderDatabase = (database) => {
+    document.querySelector('input[type=submit]').disabled = false;
+
+    document.getElementById('databaseName').innerHTML = database.name;
+    document.getElementById('databaseTables').innerHTML = '';
+
     var tablesNames = Object.keys(database.tables);
     for (var tableName in database.tables) {
         var tableFields = database.tables[tableName];
@@ -61,9 +26,26 @@ let renderDatabase = (database) => {
             </div>
         `;
     }
+};
 
-    document.getElementById('databaseName').innerHTML = database.name;
-}
+let loginHandler = (e) => {
+    e.preventDefault();
+    document.querySelector('input[type=submit]').disabled = true;
+
+    let formData = new FormData(loginForm),
+        dbConfig = {
+            user     : formData.get('userName') || 'root',
+            password : formData.get('password') || '',
+            database : formData.get('database') || ''
+        };
+    db.getDatabaseDetails(dbConfig)
+        .then(renderDatabase)
+        .catch((err) => {
+            throw err;
+            document.querySelector('input[type=submit]').disabled = false;
+        });
+};
 
 let loginForm = document.querySelector('form');
 loginForm.addEventListener('submit', loginHandler);
+
